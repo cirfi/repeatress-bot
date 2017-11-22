@@ -144,6 +144,10 @@ bot.on('message', (msg: Message) => {
   //   text = msg.document.file_id;
   // }
 
+  if (!text) {
+    return;
+  }
+
   const hash = crypto
     .createHash('md5')
     .update(text)
