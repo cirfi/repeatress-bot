@@ -122,7 +122,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
 bot.on('message', (msg: Message) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
-  const text = msg.text;
+  let text = msg.text;
 
   if (!chats[chatId]) {
     chats[chatId] = {
@@ -135,6 +135,14 @@ bot.on('message', (msg: Message) => {
   if (text.startsWith('/')) {
     return;
   }
+
+  if (!text && msg.sticker) {
+    text = msg.sticker.file_id;
+  }
+
+  // if (!text && msg.document) {
+  //   text = msg.document.file_id;
+  // }
 
   const hash = crypto
     .createHash('md5')
