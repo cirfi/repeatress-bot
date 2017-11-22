@@ -1,0 +1,22 @@
+{
+  "defaultSeverity": "error",
+  "extends": [
+    "tslint:recommended",
+    "tslint-config-prettier"
+  ],
+  "rulesDirectory": [
+    "tslint-plugin-prettier"
+  ],
+  "rules": {
+    "prettier": [
+      true,
+      {
+        "singleQuote": true
+      }
+    ],
+    "member-access": false,
+    "interface-name": [true, "never-prefix"],
+    "no-console": [false],
+    "no-var-requires": false
+  }
+}

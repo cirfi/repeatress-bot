@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Bot via NPM",
+      "cwd": "${workspaceRoot}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run-script", "debug"
+      ],
+      "port": 9229,
+      "protocol": "inspector",
+      "sourceMaps": true
+    }
+  ]
+}

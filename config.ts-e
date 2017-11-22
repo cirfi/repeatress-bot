@@ -1,0 +1,7 @@
+export default {
+  token: '484524723:AAGT0oNJ2_rQQnTapnYdjry_Ashz5V4tOtU',
+  webHook: {
+    port: 0,
+    url: ''
+  }
+};

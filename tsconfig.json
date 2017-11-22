@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "outDir": "./dist/",
+    "lib": [
+      "es2016"
+    ]
+  },
+  "awesomeTypescriptLoaderOptions": {
+    "useCache": true,
+    "useTranspileModule": true
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}
