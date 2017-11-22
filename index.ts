@@ -52,9 +52,19 @@ if (releaseMode === 1) {
 
 bot.onText(/\/status/, (msg: Message) => {
   const chatId = msg.chat.id;
+  const count = Object.keys(chats)
+    .filter(c => c.startsWith('-'))
+    .reduce((acc, curr) => acc + 1, 0);
   client.keys(`${chatId}*`, (err, keys) => {
     if (!err) {
-      bot.sendMessage(chatId, `缓存数：${keys.length}。`);
+      bot.sendMessage(
+        chatId,
+        `当前缓存数：${keys.length}；
+当前阈值：${chats[chatId].threshold}；
+当前有效时间：${chats[chatId].timeout}。
+
+已有 ${count} 个群使用了复读姬。`
+      );
     }
   });
 });
@@ -76,8 +86,8 @@ bot.onText(/\/timeout/, (msg: Message) => {
     bot.sendMessage(
       chatId,
       `设置成功。
-当前阈值：${chats[chatId].threshold};
-当前有效时间：${chats[chatId].timeout}`,
+当前阈值：${chats[chatId].threshold}；
+当前有效时间：${chats[chatId].timeout}。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -106,8 +116,8 @@ bot.onText(/\/threshold/, (msg: Message) => {
     bot.sendMessage(
       chatId,
       `设置成功。
-当前阈值：${chats[chatId].threshold};
-当前有效时间：${chats[chatId].timeout}`,
+当前阈值：${chats[chatId].threshold}；
+当前有效时间：${chats[chatId].timeout}。`,
       {
         reply_to_message_id: msg.message_id
       }
