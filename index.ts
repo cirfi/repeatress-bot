@@ -132,7 +132,7 @@ bot.on('message', (msg: Message) => {
     fs.writeFileSync('chats.json', JSON.stringify(chats));
   }
 
-  if (text.startsWith('/')) {
+  if (text && text.startsWith('/')) {
     return;
   }
 
