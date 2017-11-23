@@ -31,7 +31,6 @@ pool.query('SELECT * FROM config').then(res => {
         timezone: row.timezone
       };
     }
-    console.log(chats);
   }
 });
 
@@ -40,6 +39,24 @@ pool.query('SELECT * FROM config').then(res => {
 //   fs.writeFileSync('chats.json', '{}');
 // }
 // const chats = JSON.parse(fs.readFileSync('chats.json', 'utf-8'));
+
+// 时区配置
+const timezoneData = JSON.parse(
+  fs.readFileSync(
+    'node_modules/moment-timezone/data/packed/latest.json',
+    'utf-8'
+  )
+);
+const zones = new Set();
+for (const zone of timezoneData.zones) {
+  zones.add(zone.split('|')[0]);
+}
+for (const zone of timezoneData.links) {
+  const link = zone.split('|');
+  if (zones.has(link[0])) {
+    zones.add(link[1]);
+  }
+}
 
 // 连接 Redis
 const redisClient = redis.createClient();
@@ -85,7 +102,8 @@ bot.onText(/\/status/, (msg: Message) => {
         chatId,
         `当前会话缓存数：${keys.length}；
 当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒。
+当前会话消息有效间隔：${chats[chatId].timeout} 秒；
+当前会话时区：${chats[chatId].timezone}。
 
 复读姬本次已启动${getDuration()}。
 复读姬在本次启动中已复读 ${messageCount} 条消息。
@@ -106,7 +124,8 @@ bot.onText(/\/timeout/, (msg: Message) => {
       chatId,
       `设置成功。
 当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒。`,
+当前会话消息有效间隔：${chats[chatId].timeout} 秒；
+当前会话时区：${chats[chatId].timezone}。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -128,7 +147,8 @@ bot.onText(/\/threshold/, (msg: Message) => {
       chatId,
       `设置成功。
 当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒。`,
+当前会话消息有效间隔：${chats[chatId].timeout} 秒；
+当前会话时区：${chats[chatId].timezone}。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -137,6 +157,34 @@ bot.onText(/\/threshold/, (msg: Message) => {
     bot.sendMessage(chatId, '请输入大于等于 3 的阈值。', {
       reply_to_message_id: msg.message_id
     });
+  }
+});
+
+bot.onText(/\/timezone/, (msg: Message) => {
+  const chatId = msg.chat.id;
+  const timezoneString = msg.text.split(' ')[1];
+  const timezone = parseInt(timezoneString, 10);
+  if (zones.has(timezone)) {
+    checkConfig(chatId, { timezone });
+    bot.sendMessage(
+      chatId,
+      `设置成功。
+当前会话消息阈值：${chats[chatId].threshold} 条；
+当前会话消息有效间隔：${chats[chatId].timeout} 秒；
+当前会话时区：${chats[chatId].timezone}。`,
+      {
+        reply_to_message_id: msg.message_id
+      }
+    );
+  } else {
+    bot.sendMessage(
+      chatId,
+      `无效时区，可用时区请查询：
+https://github.com/moment/moment-timezone/blob/develop/data/packed/latest.json`,
+      {
+        reply_to_message_id: msg.message_id
+      }
+    );
   }
 });
 
@@ -161,7 +209,7 @@ bot.onText(/\/today/, (msg: Message) => {
         const texts = [];
         for (const row of res.rows) {
           texts.push(
-            `<i>${formatDate(chatId, row.create_time)}</i>\n${row.content}`
+            `<i>- ${formatDate(chatId, row.create_time)}</i>\n${row.content}`
           );
         }
         bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
