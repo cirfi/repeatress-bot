@@ -162,8 +162,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
 
 bot.onText(/\/timezone/, (msg: Message) => {
   const chatId = msg.chat.id;
-  const timezoneString = msg.text.split(' ')[1];
-  const timezone = parseInt(timezoneString, 10);
+  const timezone = msg.text.split(' ')[1].trim();
   if (zones.has(timezone)) {
     checkConfig(chatId, { timezone });
     bot.sendMessage(
