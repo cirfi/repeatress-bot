@@ -207,9 +207,11 @@ bot.onText(/\/today/, (msg: Message) => {
         bot.sendMessage(chatId, '本会话今天没有复读过哟，还请加油水群。');
       } else {
         const texts = [];
-        for (const row of res.rows) {
+        for (const [index, row] of res.rows.entries()) {
           texts.push(
-            `<i>- ${formatDate(chatId, row.create_time)}</i>\n${row.content}`
+            `<i>[${index}] ${formatDate(chatId, row.create_time)}</i>\n${
+              row.content
+            }`
           );
         }
         bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
