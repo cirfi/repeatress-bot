@@ -2,7 +2,7 @@ import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
 import * as express from 'express';
 import * as fs from 'fs';
-import * as moment from 'moment';
+import * as moment from 'moment-timezone';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
 import { Pool } from 'pg';
@@ -160,7 +160,9 @@ bot.onText(/\/today/, (msg: Message) => {
       } else {
         const texts = [];
         for (const row of res.rows) {
-          texts.push(`<i>${formatDate(row.create_time)}</i>\n${row.content}`);
+          texts.push(
+            `<i>${formatDate(chatId, row.create_time)}</i>\n${row.content}`
+          );
         }
         bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
       }
@@ -270,8 +272,13 @@ function getDuration() {
   return result;
 }
 
-function formatDate(time: Date) {
-  return moment(time).format('YYYY-MM-DD HH:mm:ss');
+function formatDate(chatId, time: Date) {
+  const timezone = chats[chatId].timezone;
+  return (
+    moment(time)
+      .tz(timezone)
+      .format('YYYY-MM-DD HH:mm:ss') + ` ${timezone}`
+  );
 }
 
 function checkConfig(chatId, toSet = null) {
