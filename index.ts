@@ -2,9 +2,10 @@ import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
 import * as express from 'express';
 import * as fs from 'fs';
+import * as moment from 'moment';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
-// import { Client } from 'pg';
+import { Pool } from 'pg';
 import * as redis from 'redis';
 
 import config from './config';
@@ -17,19 +18,34 @@ const token = config.token;
 
 let bot: TelegramBot;
 
+// 连接 Postgres
+const pool = new Pool(config.db);
+// 加载配置
+const chats = {};
+pool.query('SELECT * FROM config').then(res => {
+  if (res.rows.length > 0) {
+    for (const row of res.rows) {
+      chats[row.chat_id] = {
+        threshold: row.threshold,
+        timeout: row.timeout,
+        timezone: row.timezone
+      };
+    }
+    console.log(chats);
+  }
+});
+
 // 分组配置
-if (!fs.existsSync('chats.json')) {
-  fs.writeFileSync('chats.json', '{}');
-}
-const chats = JSON.parse(fs.readFileSync('chats.json', 'utf-8'));
+// if (!fs.existsSync('chats.json')) {
+//   fs.writeFileSync('chats.json', '{}');
+// }
+// const chats = JSON.parse(fs.readFileSync('chats.json', 'utf-8'));
 
 // 连接 Redis
 const redisClient = redis.createClient();
 redisClient.on('error', err => {
   console.log('Error ' + err);
 });
-
-// 连接 Postgres
 
 // 是否设置了 release 的环境变量？是则使用 webHook，否则用轮询
 const releaseMode = process.env.RELEASE ? 1 : 0;
@@ -68,11 +84,12 @@ bot.onText(/\/status/, (msg: Message) => {
       bot.sendMessage(
         chatId,
         `当前会话缓存数：${keys.length}；
-当前会话消息阈值：${chats[chatId].threshold}；
-当前会话消息有效间隔：${chats[chatId].timeout}。
+当前会话消息阈值：${chats[chatId].threshold} 条；
+当前会话消息有效间隔：${chats[chatId].timeout} 秒。
 
 复读姬本次已启动${getDuration()}。
 复读姬在本次启动中已复读 ${messageCount} 条消息。
+
 已有 ${count} 个群使用了复读姬。`
       );
     }
@@ -84,20 +101,12 @@ bot.onText(/\/timeout/, (msg: Message) => {
   const timeoutString = msg.text.split(' ')[1];
   const timeout = parseInt(timeoutString, 10);
   if (timeout >= 10) {
-    if (!chats[chatId]) {
-      chats[chatId] = {
-        threshold: 3,
-        timeout
-      };
-    } else {
-      chats[chatId] = Object.assign({}, chats[chatId], { timeout });
-    }
-    fs.writeFileSync('chats.json', JSON.stringify(chats));
+    checkConfig(chatId, { timeout });
     bot.sendMessage(
       chatId,
       `设置成功。
-当前会话消息阈值：${chats[chatId].threshold}；
-当前会话消息有效间隔：${chats[chatId].timeout}。`,
+当前会话消息阈值：${chats[chatId].threshold} 条；
+当前会话消息有效间隔：${chats[chatId].timeout} 秒。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -114,20 +123,12 @@ bot.onText(/\/threshold/, (msg: Message) => {
   const thresholdString = msg.text.split(' ')[1];
   const threshold = parseInt(thresholdString, 10);
   if (threshold >= 3) {
-    if (!chats[chatId]) {
-      chats[chatId] = {
-        threshold,
-        timeout: 30
-      };
-    } else {
-      chats[chatId] = Object.assign({}, chats[chatId], { threshold });
-    }
-    fs.writeFileSync('chats.json', JSON.stringify(chats));
+    checkConfig(chatId, { threshold });
     bot.sendMessage(
       chatId,
       `设置成功。
-当前会话消息阈值：${chats[chatId].threshold}；
-当前会话消息有效间隔：${chats[chatId].timeout}。`,
+当前会话消息阈值：${chats[chatId].threshold} 条；
+当前会话消息有效间隔：${chats[chatId].timeout} 秒。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -139,25 +140,47 @@ bot.onText(/\/threshold/, (msg: Message) => {
   }
 });
 
+bot.onText(/\/today/, (msg: Message) => {
+  const chatId = msg.chat.id;
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const start = new Date(now.getTime());
+  now.setHours(23, 59, 59, 999);
+  const end = now;
+
+  pool
+    .query(
+      'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time <= $3',
+      [chatId, start, end]
+    )
+    .then(res => {
+      if (res.rows.length === 0) {
+        bot.sendMessage(chatId, '本会话今天没有复读过哟，还请加油水群。');
+      } else {
+        const texts = [];
+        for (const row of res.rows) {
+          texts.push(`<i>${formatDate(row.create_time)}</i>\n${row.content}`);
+        }
+        bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
+      }
+    })
+    .catch(err => console.log(err.stack));
+});
+
 bot.on('message', (msg: Message) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   let text = msg.text;
 
-  if (!chats[chatId]) {
-    chats[chatId] = {
-      threshold: 3,
-      timeout: 30
-    };
-    fs.writeFileSync('chats.json', JSON.stringify(chats));
-  }
+  checkConfig(chatId);
 
   if (text && text.startsWith('/')) {
     return;
   }
 
   if (!text && msg.sticker) {
-    text = msg.sticker.file_id;
+    text = `(sticker) ${msg.sticker.file_id}`;
   }
 
   // if (!text && msg.document) {
@@ -186,7 +209,7 @@ bot.on('message', (msg: Message) => {
   //   }
   // });
 
-  trigger(key, chatId, msgId);
+  trigger(key, chatId, msgId, text);
 });
 
 // function setnx(key, chatId, msgId) {
@@ -199,14 +222,22 @@ bot.on('message', (msg: Message) => {
 //   });
 // }
 
-function trigger(key, chatId, msgId) {
+function trigger(key, chatId, msgId, text) {
   redisClient.incr(key, (err, result) => {
     if (result === chats[chatId].threshold) {
       messageCount++;
       bot.forwardMessage(chatId, chatId, msgId);
+      save(chatId, msgId, text);
     }
     redisClient.expire(key, chats[chatId].timeout);
   });
+}
+
+function save(chatId, msgId, text) {
+  pool.query(
+    'INSERT INTO message (chat_id, msg_id, content, create_time) VALUES ($1, $2, $3, $4)',
+    [chatId, msgId, text, new Date()]
+  );
 }
 
 function getDuration() {
@@ -237,4 +268,44 @@ function getDuration() {
   }
 
   return result;
+}
+
+function formatDate(time: Date) {
+  return moment(time).format('YYYY-MM-DD HH:mm:ss');
+}
+
+function checkConfig(chatId, toSet = null) {
+  if (!chats[chatId]) {
+    chats[chatId] = Object.assign(
+      {},
+      {
+        threshold: 3,
+        timeout: 30,
+        timezone: 'Asia/Shanghai'
+      },
+      toSet
+    );
+    const setting = chats[chatId];
+    pool
+      .query(
+        'INSERT INTO config (chat_id, threshold, timeout, timezone) VALUES ($1, $2, $3, $4)',
+        [chatId, setting.threshold, setting.timeout, setting.timezone]
+      )
+      .then(res => {
+        console.log(`GROUP ${chatId}'s setting has been updated.`);
+      })
+      .catch(err => console.log(err));
+  } else if (toSet) {
+    chats[chatId] = Object.assign({}, chats[chatId], toSet);
+    const setting = chats[chatId];
+    pool
+      .query(
+        'UPDATE config SET threshold = $2, timeout = $3, timezone = $4 WHERE chat_id = $1',
+        [chatId, setting.threshold, setting.timeout, setting.timezone]
+      )
+      .then(res => {
+        console.log(`GROUP ${chatId}'s setting has been updated.`);
+      })
+      .catch(err => console.log(err));
+  }
 }
