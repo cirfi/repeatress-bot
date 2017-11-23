@@ -4,9 +4,13 @@ import * as express from 'express';
 import * as fs from 'fs';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
+// import { Client } from 'pg';
 import * as redis from 'redis';
 
 import config from './config';
+
+// 启动时间
+const startTime = process.hrtime();
 
 const token = config.token;
 
@@ -19,10 +23,12 @@ if (!fs.existsSync('chats.json')) {
 const chats = JSON.parse(fs.readFileSync('chats.json', 'utf-8'));
 
 // 连接 Redis
-const client = redis.createClient();
-client.on('error', err => {
+const redisClient = redis.createClient();
+redisClient.on('error', err => {
   console.log('Error ' + err);
 });
+
+// 连接 Postgres
 
 // 是否设置了 release 的环境变量？是则使用 webHook，否则用轮询
 const releaseMode = process.env.RELEASE ? 1 : 0;
@@ -55,14 +61,16 @@ bot.onText(/\/status/, (msg: Message) => {
   const count = Object.keys(chats)
     .filter(c => c.startsWith('-'))
     .reduce((acc, curr) => acc + 1, 0);
-  client.keys(`${chatId}*`, (err, keys) => {
+
+  redisClient.keys(`${chatId}*`, (err, keys) => {
     if (!err) {
       bot.sendMessage(
         chatId,
-        `当前缓存数：${keys.length}；
-当前阈值：${chats[chatId].threshold}；
-当前有效时间：${chats[chatId].timeout}。
+        `当前会话缓存数：${keys.length}；
+当前会话消息阈值：${chats[chatId].threshold}；
+当前会话消息有效间隔：${chats[chatId].timeout}。
 
+复读姬本次已启动${getDuration()}。
 已有 ${count} 个群使用了复读姬。`
       );
     }
@@ -86,8 +94,8 @@ bot.onText(/\/timeout/, (msg: Message) => {
     bot.sendMessage(
       chatId,
       `设置成功。
-当前阈值：${chats[chatId].threshold}；
-当前有效时间：${chats[chatId].timeout}。`,
+当前会话消息阈值：${chats[chatId].threshold}；
+当前会话消息有效间隔：${chats[chatId].timeout}。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -116,8 +124,8 @@ bot.onText(/\/threshold/, (msg: Message) => {
     bot.sendMessage(
       chatId,
       `设置成功。
-当前阈值：${chats[chatId].threshold}；
-当前有效时间：${chats[chatId].timeout}。`,
+当前会话消息阈值：${chats[chatId].threshold}；
+当前会话消息有效间隔：${chats[chatId].timeout}。`,
       {
         reply_to_message_id: msg.message_id
       }
@@ -165,33 +173,58 @@ bot.on('message', (msg: Message) => {
 
   const key = `${chatId}_${hash}`;
 
-  client.get(key, (err, result) => {
-    if (result !== null) {
-      const now = parseInt(result, 10);
-      if (now < chats[chatId].threshold) {
-        incr(key, chatId, msgId);
-      }
-    } else {
-      setnx(key, chatId, msgId);
-    }
-  });
+  // redisClient.get(key, (err, result) => {
+  //   if (result !== null) {
+  //     const now = parseInt(result, 10);
+  //     if (now < chats[chatId].threshold) {
+  //       incr(key, chatId, msgId);
+  //     }
+  //   } else {
+  //     setnx(key, chatId, msgId);
+  //   }
+  // });
+
+  trigger(key, chatId, msgId);
 });
 
-function setnx(key, chatId, msgId) {
-  client.setnx(key, '1', (err, result) => {
-    if (result === 0) {
-      incr(key, chatId, msgId);
-    } else {
-      client.expire(key, chats[chatId].timeout);
-    }
-  });
-}
+// function setnx(key, chatId, msgId) {
+//   redisClient.setnx(key, '1', (err, result) => {
+//     if (result === 0) {
+//       trigger(key, chatId, msgId);
+//     } else {
+//       redisClient.expire(key, chats[chatId].timeout);
+//     }
+//   });
+// }
 
-function incr(key, chatId, msgId) {
-  client.incr(key, (err, result) => {
+function trigger(key, chatId, msgId) {
+  redisClient.incr(key, (err, result) => {
     if (result === chats[chatId].threshold) {
       bot.forwardMessage(chatId, chatId, msgId);
     }
-    client.expire(key, chats[chatId].timeout);
+    redisClient.expire(key, chats[chatId].timeout);
   });
+}
+
+function getDuration() {
+  const seconds = process.hrtime(startTime)[0];
+  const totalMinutes = seconds / 60;
+  const totalHours = totalMinutes / 60;
+  const totalDays = totalHours / 24;
+  const days = Math.floor(totalDays);
+  const hours = Math.floor(totalHours - days * 24);
+  const minutes = Math.floor(totalMinutes - (days * 24 + hours) * 60);
+
+  let result = '';
+  if (days > 0) {
+    result += ` ${days} 天`;
+  }
+  if (days > 0 || hours > 0) {
+    result += ` ${hours} 小时`;
+  }
+  if (days > 0 || hours > 0 || minutes > 0) {
+    result += ` ${minutes} 分`;
+  }
+
+  return result;
 }
