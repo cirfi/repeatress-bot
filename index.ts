@@ -11,6 +11,7 @@ import config from './config';
 
 // 启动时间
 const startTime = process.hrtime();
+let messageCount = 0;
 
 const token = config.token;
 
@@ -71,6 +72,7 @@ bot.onText(/\/status/, (msg: Message) => {
 当前会话消息有效间隔：${chats[chatId].timeout}。
 
 复读姬本次已启动${getDuration()}。
+复读姬在本次启动中已复读 ${messageCount} 条消息。
 已有 ${count} 个群使用了复读姬。`
       );
     }
@@ -200,6 +202,7 @@ bot.on('message', (msg: Message) => {
 function trigger(key, chatId, msgId) {
   redisClient.incr(key, (err, result) => {
     if (result === chats[chatId].threshold) {
+      messageCount++;
       bot.forwardMessage(chatId, chatId, msgId);
     }
     redisClient.expire(key, chats[chatId].timeout);
@@ -207,23 +210,30 @@ function trigger(key, chatId, msgId) {
 }
 
 function getDuration() {
-  const seconds = process.hrtime(startTime)[0];
-  const totalMinutes = seconds / 60;
-  const totalHours = totalMinutes / 60;
-  const totalDays = totalHours / 24;
-  const days = Math.floor(totalDays);
-  const hours = Math.floor(totalHours - days * 24);
-  const minutes = Math.floor(totalMinutes - (days * 24 + hours) * 60);
+  const totalSeconds = process.hrtime(startTime)[0];
+  const seconds = totalSeconds % 60;
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = Math.floor(totalHours / 24);
+
+  const totalDays = Math.floor(totalHours / 24);
+  const days = totalDays;
 
   let result = '';
-  if (days > 0) {
-    result += ` ${days} 天`;
-  }
-  if (days > 0 || hours > 0) {
-    result += ` ${hours} 小时`;
-  }
-  if (days > 0 || hours > 0 || minutes > 0) {
-    result += ` ${minutes} 分`;
+  if (seconds > 0) {
+    if (minutes > 0) {
+      if (hours > 0) {
+        if (days > 0) {
+          result += ` ${days} 天`;
+        }
+        result += ` ${hours} 小时`;
+      }
+      result += ` ${minutes} 分`;
+    }
+    result += ` ${seconds} 秒`;
   }
 
   return result;
