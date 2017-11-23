@@ -5,19 +5,21 @@ CREATE DATABASE repeatress;
 CREATE TABLE config (
   id SERIAL PRIMARY KEY,
   chat_id VARCHAR(32),
-  threshold smallint,
-  timeout smallint,
-  timezone VARCHAR(32) DEFAULT 'Asia/Shanghai'
+  threshold SMALLINT,
+  timeout SMALLINT,
+  timezone VARCHAR(32) DEFAULT 'UTC'
 );
 CREATE UNIQUE INDEX ON config (chat_id);
 
 CREATE TABLE message (
   id SERIAL PRIMARY KEY,
   chat_id VARCHAR(32),
-  msg_id bigint,
+  fwd_msg_id BIGINT,
+  msg_id BIGINT,
   content VARCHAR(4096),
   create_time TIMESTAMPTZ
 );
 CREATE INDEX ON message (chat_id);
+CREATE UNIQUE INDEX ON message (chat_id, fwd_msg_id);
 CREATE UNIQUE INDEX ON message (chat_id, msg_id);
 CREATE INDEX ON message (chat_id, create_time);

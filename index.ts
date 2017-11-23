@@ -249,45 +249,25 @@ bot.on('message', (msg: Message) => {
 
   const key = `${chatId}_${hash}`;
 
-  // redisClient.get(key, (err, result) => {
-  //   if (result !== null) {
-  //     const now = parseInt(result, 10);
-  //     if (now < chats[chatId].threshold) {
-  //       incr(key, chatId, msgId);
-  //     }
-  //   } else {
-  //     setnx(key, chatId, msgId);
-  //   }
-  // });
-
   trigger(key, chatId, msgId, text);
 });
-
-// function setnx(key, chatId, msgId) {
-//   redisClient.setnx(key, '1', (err, result) => {
-//     if (result === 0) {
-//       trigger(key, chatId, msgId);
-//     } else {
-//       redisClient.expire(key, chats[chatId].timeout);
-//     }
-//   });
-// }
 
 function trigger(key, chatId, msgId, text) {
   redisClient.incr(key, (err, result) => {
     if (result === chats[chatId].threshold) {
       messageCount++;
-      bot.forwardMessage(chatId, chatId, msgId);
-      save(chatId, msgId, text);
+      bot.forwardMessage(chatId, chatId, msgId).then((res: Message) => {
+        save(chatId, msgId, res.message_id, text);
+      });
     }
     redisClient.expire(key, chats[chatId].timeout);
   });
 }
 
-function save(chatId, msgId, text) {
+function save(chatId, fwdMsgId, msgId, text) {
   pool.query(
-    'INSERT INTO message (chat_id, msg_id, content, create_time) VALUES ($1, $2, $3, $4)',
-    [chatId, msgId, text, new Date()]
+    'INSERT INTO message (chat_id, fwd_msg_id, msg_id, content, create_time) VALUES ($1, $2, $3, $4, $5)',
+    [chatId, fwdMsgId, msgId, text, new Date()]
   );
 }
 
@@ -337,11 +317,12 @@ function checkConfig(chatId, toSet = null) {
       {
         threshold: 3,
         timeout: 30,
-        timezone: 'Asia/Shanghai'
+        timezone: 'UTC'
       },
       toSet
     );
     const setting = chats[chatId];
+    // 插入，因为数据库里有唯一索引，所以不用担心插入多次
     pool
       .query(
         'INSERT INTO config (chat_id, threshold, timeout, timezone) VALUES ($1, $2, $3, $4)',
@@ -354,6 +335,7 @@ function checkConfig(chatId, toSet = null) {
   } else if (toSet) {
     chats[chatId] = Object.assign({}, chats[chatId], toSet);
     const setting = chats[chatId];
+    // 更新
     pool
       .query(
         'UPDATE config SET threshold = $2, timeout = $3, timezone = $4 WHERE chat_id = $1',
