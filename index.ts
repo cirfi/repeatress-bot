@@ -263,9 +263,13 @@ bot.onText(/\/anchor/, (msg: Message) => {
             //
           })
           .catch(reason => {
-            bot.sendMessage(chatIdR, '是谁残忍地把复读姬的消息删掉了吗？', {
-              reply_to_message_id: fromMsgId
-            });
+            bot.sendMessage(
+              chatIdR,
+              '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
+              {
+                reply_to_message_id: fromMsgId
+              }
+            );
           });
       });
     }
@@ -293,9 +297,13 @@ bot.onText(/\/forward/, (msg: Message) => {
             //
           })
           .catch(reason => {
-            bot.sendMessage(chatIdR, '是谁残忍地把复读姬的消息删掉了吗？', {
-              reply_to_message_id: fromMsgId
-            });
+            bot.sendMessage(
+              chatIdR,
+              '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
+              {
+                reply_to_message_id: fromMsgId
+              }
+            );
           });
       });
     }
