@@ -242,6 +242,46 @@ bot.onText(/\/interval/, (msg: Message) => {
   }
 });
 
+bot.onText(/\/search/, (msg: Message) => {
+  try {
+    const [text] = checkCommand(msg.text.trim());
+
+    const chatId = msg.chat.id.toString();
+
+    pool
+      .query(
+        "SELECT * FROM message WHERE chat_id = $1 AND content LIKE CONCAT('%', $2, '%')",
+        [chatId, text]
+      )
+      .then(res => {
+        if (res.rows.length > 0) {
+          const texts = [];
+          const timezone = chats.get(chatId).timezone;
+          for (const [index, row] of res.rows.entries()) {
+            texts.push(
+              `<i>[${index}] ${formatDate(
+                timezone,
+                row.create_time
+              )} ${parseTimezone(timezone)}</i>\n${row.content}`
+            );
+          }
+          bot
+            .sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' })
+            .then((m: Message) => {
+              const msgId = m.message_id;
+              const msgIds = res.rows.map(r => r.msg_id);
+              saveRecord(chatId, msgId, msgIds);
+            });
+        } else {
+          bot.sendMessage(chatId, '没有找到数据呢。');
+        }
+      })
+      .catch(e => console.log(e));
+  } catch (e) {
+    //
+  }
+});
+
 bot.onText(/\/anchor/, (msg: Message) => {
   handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
