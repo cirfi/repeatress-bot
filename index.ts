@@ -243,73 +243,43 @@ bot.onText(/\/interval/, (msg: Message) => {
 });
 
 bot.onText(/\/anchor/, (msg: Message) => {
-  try {
-    const [index] = checkCommand(msg.text.trim());
-    const chatId = msg.chat.id;
-    const replyToMessage = msg.reply_to_message;
-    const msgId = replyToMessage.message_id;
-    const fromMsgId = msg.message_id;
-    if (replyToMessage.from.username !== username) {
-      bot.sendMessage(chatId, '你在回复谁呀！', {
-        reply_to_message_id: fromMsgId
+  handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
+    bot
+      .sendMessage(chatId, '似乎找到了。', {
+        reply_to_message_id: msgId
+      })
+      .then((m: Message) => {
+        //
+      })
+      .catch(reason => {
+        bot.sendMessage(
+          chatId,
+          '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
+          {
+            reply_to_message_id: replyToMsgId
+          }
+        );
       });
-    } else {
-      getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
-        bot
-          .sendMessage(chatIdR, '似乎找到了。', {
-            reply_to_message_id: msgIdR
-          })
-          .then((m: Message) => {
-            //
-          })
-          .catch(reason => {
-            bot.sendMessage(
-              chatIdR,
-              '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
-              {
-                reply_to_message_id: fromMsgId
-              }
-            );
-          });
-      });
-    }
-  } catch (e) {
-    //
-  }
+  });
 });
 
 bot.onText(/\/forward/, (msg: Message) => {
-  try {
-    const [index] = checkCommand(msg.text.trim());
-    const chatId = msg.chat.id;
-    const replyToMessage = msg.reply_to_message;
-    const msgId = replyToMessage.message_id;
-    const fromMsgId = msg.message_id;
-    if (replyToMessage.from.username !== username) {
-      bot.sendMessage(chatId, '你在回复谁呀！', {
-        reply_to_message_id: fromMsgId
+  handleMessageRecord(msg, (chatIdR, msgIdR, replyToMsgId) => {
+    bot
+      .forwardMessage(chatIdR, chatIdR, msgIdR)
+      .then((m: Message) => {
+        //
+      })
+      .catch(reason => {
+        bot.sendMessage(
+          chatIdR,
+          '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
+          {
+            reply_to_message_id: replyToMsgId
+          }
+        );
       });
-    } else {
-      getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
-        bot
-          .forwardMessage(chatIdR, chatIdR, msgIdR)
-          .then((m: Message) => {
-            //
-          })
-          .catch(reason => {
-            bot.sendMessage(
-              chatIdR,
-              '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
-              {
-                reply_to_message_id: fromMsgId
-              }
-            );
-          });
-      });
-    }
-  } catch (e) {
-    //
-  }
+  });
 });
 
 bot.on('message', (msg: Message) => {
@@ -538,7 +508,15 @@ function saveRecord(chatId, msgId, msgIds) {
     .catch(err => console.log(err));
 }
 
-function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
+function getRecordAndRun(
+  chatId,
+  msgId,
+  fromMsgId,
+  index,
+  func: (chatId: number, msgId: number, replyToMsgId: number) => void,
+  replyToMsgId,
+  forwardToChatId = null
+) {
   pool
     .query('SELECT * FROM record WHERE chat_id = $1 AND msg_id = $2', [
       chatId,
@@ -547,7 +525,7 @@ function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
     .then(res => {
       if (res.rows.length > 0) {
         const msgIds = res.rows[0].msg_ids;
-        func(chatId, msgIds[index]);
+        func(chatId, msgIds[index], replyToMsgId);
       } else {
         bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
           reply_to_message_id: fromMsgId
@@ -555,4 +533,23 @@ function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
       }
     })
     .catch(err => console.log(err));
+}
+
+function handleMessageRecord(
+  msg: Message,
+  func: (chatId: number, msgId: number, replyToMsgId: number) => void
+) {
+  let index;
+  [index] = checkCommand(msg.text.trim());
+  const chatId = msg.chat.id;
+  const replyToMessage = msg.reply_to_message;
+  const msgId = replyToMessage.message_id;
+  const fromMsgId = msg.message_id;
+  if (replyToMessage.from.username !== username) {
+    bot.sendMessage(chatId, '你在回复谁呀！', {
+      reply_to_message_id: fromMsgId
+    });
+  } else {
+    getRecordAndRun(chatId, msgId, fromMsgId, index, func, fromMsgId);
+  }
 }
