@@ -247,10 +247,14 @@ bot.onText(/\/search/, (msg: Message) => {
     const [text] = checkCommand(msg.text.trim());
 
     const chatId = msg.chat.id.toString();
+    if (!text) {
+      bot.sendMessage(chatId, '请输入需要查询的内容。');
+      return;
+    }
 
     pool
       .query(
-        "SELECT * FROM message WHERE chat_id = $1 AND content LIKE CONCAT('%', $2, '%')",
+        "SELECT * FROM message WHERE chat_id = $1 AND content LIKE CONCAT('%', $2::text, '%')",
         [chatId, text]
       )
       .then(res => {
