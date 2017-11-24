@@ -504,7 +504,7 @@ function saveRecord(chatId, msgId, msgIds) {
   pool
     .query(
       'INSERT INTO record (chat_id, msg_id, msg_ids) VALUES ($1, $2, $3)',
-      [chatId, msgId, msgIds]
+      [chatId, msgId, JSON.stringify(msgIds)]
     )
     .then(res => {
       // do nothing
@@ -520,7 +520,7 @@ function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
     ])
     .then(res => {
       if (res.rows.length > 0) {
-        const msgIds = res.rows[0].msg_ids;
+        const msgIds = JSON.parse(res.rows[0].msg_ids);
         func(chatId, msgIds[index]);
       } else {
         bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
