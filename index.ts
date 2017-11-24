@@ -248,7 +248,9 @@ bot.onText(/\/search/, (msg: Message) => {
 
     const chatId = msg.chat.id.toString();
     if (!text) {
-      bot.sendMessage(chatId, '请输入需要查询的内容。');
+      bot.sendMessage(chatId, '请输入需要查询的内容。', {
+        reply_to_message_id: msg.message_id
+      });
       return;
     }
 
