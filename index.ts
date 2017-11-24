@@ -255,9 +255,18 @@ bot.onText(/\/anchor/, (msg: Message) => {
       });
     } else {
       getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
-        bot.sendMessage(chatIdR, '似乎找到了。', {
-          reply_to_message_id: msgIdR
-        });
+        bot
+          .sendMessage(chatIdR, '似乎找到了。', {
+            reply_to_message_id: msgIdR
+          })
+          .then((m: Message) => {
+            //
+          })
+          .catch(reason => {
+            bot.sendMessage(chatIdR, '是谁残忍地把复读姬的消息删掉了吗？', {
+              reply_to_message_id: fromMsgId
+            });
+          });
       });
     }
   } catch (e) {
@@ -278,7 +287,16 @@ bot.onText(/\/forward/, (msg: Message) => {
       });
     } else {
       getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
-        bot.forwardMessage(chatIdR, chatIdR, msgIdR);
+        bot
+          .forwardMessage(chatIdR, chatIdR, msgIdR)
+          .then((m: Message) => {
+            //
+          })
+          .catch(reason => {
+            bot.sendMessage(chatIdR, '是谁残忍地把复读姬的消息删掉了吗？', {
+              reply_to_message_id: fromMsgId
+            });
+          });
       });
     }
   } catch (e) {
