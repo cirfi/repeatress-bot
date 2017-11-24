@@ -7,7 +7,7 @@ CREATE TABLE config (
   chat_id VARCHAR(32),
   threshold SMALLINT,
   timeout SMALLINT,
-  timezone VARCHAR(32) DEFAULT 'UTC'
+  timezone SMALLINT DEFAULT 0
 );
 CREATE UNIQUE INDEX ON config (chat_id);
 
