@@ -1,6 +1,6 @@
 import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
-import { addHours, format, startOfDay } from 'date-fns';
+import { addHours, format, getMonth, getYear, startOfDay } from 'date-fns';
 import * as express from 'express';
 import * as fs from 'fs';
 // import * as moment from 'moment-timezone';
@@ -387,13 +387,20 @@ function getTimezoneAndRun(chatId, func, arg1 = null, arg2 = null) {
 function getDayStartAndEnd(timezone, timeString = null) {
   const offset = timezone - globalTimezone;
 
+  const now = new Date();
+  const localTime = addHours(now, offset);
+
   let time;
   if (timeString) {
-    time = new Date(timeString);
+    const dashs = timeString.split('-');
+    const length = dashs.length;
+
+    const day = dashs[length - 1];
+    const month = dashs[length - 2] || getMonth(localTime);
+    const year = dashs[length - 3] || getYear(localTime);
+    time = new Date(`${year}-${month}-${day}`);
   } else {
-    const now = new Date();
-    const temp = addHours(now, offset);
-    time = startOfDay(temp);
+    time = startOfDay(localTime);
   }
 
   const start = addHours(time, -offset);
@@ -417,7 +424,7 @@ function parseTimezone(zone) {
   }
 }
 
-function sendLogDurationInterval(chatId, start, end) {
+function sendLogDurationInterval(chatId, start, end, anchor = null) {
   pool
     .query(
       'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time < $3',
@@ -428,13 +435,13 @@ function sendLogDurationInterval(chatId, start, end) {
         bot.sendMessage(chatId, '本会话这段时间没有复读过哟，还请加油水群。');
       } else {
         const texts = [];
+        const timezone = chats.get(chatId).timezone;
         for (const [index, row] of res.rows.entries()) {
           texts.push(
-            `<i>[${index}] ${getTimezoneAndRun(
-              chatId,
-              formatDate,
+            `<i>[${index}] ${formatDate(
+              timezone,
               row.create_time
-            )}</i>\n${row.content}`
+            )} ${parseTimezone(timezone)}</i>\n${row.content}`
           );
         }
         bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
