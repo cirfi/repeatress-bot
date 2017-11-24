@@ -75,7 +75,7 @@ bot.getMe().then((user: TelegramBot.User) => {
 bot.onText(/\/status/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const count = Array.from(chats.keys())
       .filter(c => c.startsWith('-'))
       .reduce((acc, curr) => acc + 1, 0);
@@ -104,7 +104,7 @@ bot.onText(/\/status/, (msg: Message) => {
 bot.onText(/\/timeout/, (msg: Message) => {
   try {
     const timeoutString = checkCommand(msg.text.trim())[0];
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const timeout = parseInt(timeoutString, 10);
     if (timeout >= 10 && timeout <= 32767) {
       checkConfig(chatId, { timeout });
@@ -131,7 +131,7 @@ bot.onText(/\/timeout/, (msg: Message) => {
 bot.onText(/\/threshold/, (msg: Message) => {
   try {
     const thresholdString = checkCommand(msg.text.trim())[0];
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const threshold = parseInt(thresholdString, 10);
     if (threshold >= 3 && threshold <= 32767) {
       checkConfig(chatId, { threshold });
@@ -158,7 +158,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
 bot.onText(/\/timezone/, (msg: Message) => {
   try {
     const timezoneString = checkCommand(msg.text.trim())[0];
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const timezone = parseInt(timezoneString, 10);
     if (timezone >= -12 && timezone <= 12) {
       checkConfig(chatId, { timezone });
@@ -186,7 +186,7 @@ bot.onText(/\/today/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
 
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const [start, end] = getTimezoneAndRun(chatId, getDayStartAndEnd);
 
     sendLogDurationInterval(chatId, start, end);
@@ -199,7 +199,7 @@ bot.onText(/\/recent/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
 
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
     const end = new Date();
     const start = addHours(end, -24);
 
@@ -213,7 +213,7 @@ bot.onText(/\/day/, (msg: Message) => {
   try {
     const day = checkCommand(msg.text.trim())[0];
 
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
 
     const [start, end] = getTimezoneAndRun(chatId, getDayStartAndEnd, day);
 
@@ -227,7 +227,7 @@ bot.onText(/\/interval/, (msg: Message) => {
   try {
     const [day1, day2] = checkCommand(msg.text.trim());
 
-    const chatId = msg.chat.id.toString();
+    const chatId = msg.chat.id;
 
     const [start1, end1] = getTimezoneAndRun(chatId, getDayStartAndEnd, day1);
     const [start2, end2] = getTimezoneAndRun(chatId, getDayStartAndEnd, day2);
@@ -243,7 +243,7 @@ bot.onText(/\/interval/, (msg: Message) => {
 });
 
 bot.on('message', (msg: Message) => {
-  const chatId = msg.chat.id.toString();
+  const chatId = msg.chat.id;
   const msgId = msg.message_id;
   let text = msg.text;
 
