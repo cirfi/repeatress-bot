@@ -1,8 +1,9 @@
 import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
+import { addHours, format, startOfDay } from 'date-fns';
 import * as express from 'express';
 import * as fs from 'fs';
-import * as moment from 'moment-timezone';
+// import * as moment from 'moment-timezone';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
 import { Pool } from 'pg';
@@ -21,42 +22,18 @@ let bot: TelegramBot;
 // 连接 Postgres
 const pool = new Pool(config.db);
 // 加载配置
-const chats = {};
+const chats = new Map();
 pool.query('SELECT * FROM config').then(res => {
   if (res.rows.length > 0) {
     for (const row of res.rows) {
-      chats[row.chat_id] = {
+      chats.set(row.chat_id, {
         threshold: row.threshold,
         timeout: row.timeout,
         timezone: row.timezone
-      };
+      });
     }
   }
 });
-
-// 分组配置
-// if (!fs.existsSync('chats.json')) {
-//   fs.writeFileSync('chats.json', '{}');
-// }
-// const chats = JSON.parse(fs.readFileSync('chats.json', 'utf-8'));
-
-// 时区配置
-const timezoneData = JSON.parse(
-  fs.readFileSync(
-    'node_modules/moment-timezone/data/packed/latest.json',
-    'utf-8'
-  )
-);
-const zones = new Set();
-for (const zone of timezoneData.zones) {
-  zones.add(zone.split('|')[0]);
-}
-for (const zone of timezoneData.links) {
-  const link = zone.split('|');
-  if (zones.has(link[0])) {
-    zones.add(link[1]);
-  }
-}
 
 // 连接 Redis
 const redisClient = redis.createClient();
@@ -90,133 +67,179 @@ if (releaseMode === 1) {
   bot.deleteWebHook();
 }
 
-bot.onText(/\/status/, (msg: Message) => {
-  const chatId = msg.chat.id;
-  const count = Object.keys(chats)
-    .filter(c => c.startsWith('-'))
-    .reduce((acc, curr) => acc + 1, 0);
+let username = '';
+bot.getMe().then((user: TelegramBot.User) => {
+  username = user.username;
+});
 
-  redisClient.keys(`${chatId}*`, (err, keys) => {
-    if (!err) {
-      bot.sendMessage(
-        chatId,
-        `当前会话缓存数：${keys.length}；
-当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒；
-当前会话时区：${chats[chatId].timezone}。
+bot.onText(/\/status/, (msg: Message) => {
+  try {
+    checkCommand(msg.text.trim());
+    const chatId = msg.chat.id;
+    const count = Array.from(chats.keys())
+      .filter(c => c.startsWith('-'))
+      .reduce((acc, curr) => acc + 1, 0);
+
+    redisClient.keys(`${chatId}*`, (err, keys) => {
+      if (!err) {
+        bot.sendMessage(
+          chatId,
+          `当前会话缓存数：${keys.length}；
+当前会话消息阈值：${chats.get(chatId).threshold} 条；
+当前会话消息有效间隔：${chats.get(chatId).timeout} 秒；
+当前会话时区：${getTimezoneAndRun(chatId, parseTimezone)}。
 
 复读姬本次已启动${getDuration()}。
 复读姬在本次启动中已复读 ${messageCount} 条消息。
 
 已有 ${count} 个群使用了复读姬。`
-      );
-    }
-  });
+        );
+      }
+    });
+  } catch (e) {
+    // do nothing
+  }
 });
 
 bot.onText(/\/timeout/, (msg: Message) => {
-  const chatId = msg.chat.id;
-  const timeoutString = msg.text.split(' ')[1];
-  const timeout = parseInt(timeoutString, 10);
-  if (timeout >= 10) {
-    checkConfig(chatId, { timeout });
-    bot.sendMessage(
-      chatId,
-      `设置成功。
-当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒；
-当前会话时区：${chats[chatId].timezone}。`,
-      {
+  try {
+    const timeoutString = checkCommand(msg.text.trim())[0];
+    const chatId = msg.chat.id;
+    const timeout = parseInt(timeoutString, 10);
+    if (timeout >= 10 && timeout <= 32767) {
+      checkConfig(chatId, { timeout });
+      bot.sendMessage(
+        chatId,
+        `设置成功。
+当前会话消息阈值：${chats.get(chatId).threshold} 条；
+当前会话消息有效间隔：${chats.get(chatId).timeout} 秒；
+当前会话时区：${getTimezoneAndRun(chatId, parseTimezone)}。`,
+        {
+          reply_to_message_id: msg.message_id
+        }
+      );
+    } else {
+      bot.sendMessage(chatId, '无效的时间，请输入 10 和 32767 之间的数字。', {
         reply_to_message_id: msg.message_id
-      }
-    );
-  } else {
-    bot.sendMessage(chatId, '请输入大于等于 10 的时间。', {
-      reply_to_message_id: msg.message_id
-    });
+      });
+    }
+  } catch (e) {
+    //
   }
 });
 
 bot.onText(/\/threshold/, (msg: Message) => {
-  const chatId = msg.chat.id;
-  const thresholdString = msg.text.split(' ')[1];
-  const threshold = parseInt(thresholdString, 10);
-  if (threshold >= 3) {
-    checkConfig(chatId, { threshold });
-    bot.sendMessage(
-      chatId,
-      `设置成功。
-当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒；
-当前会话时区：${chats[chatId].timezone}。`,
-      {
+  try {
+    const thresholdString = checkCommand(msg.text.trim())[0];
+    const chatId = msg.chat.id;
+    const threshold = parseInt(thresholdString, 10);
+    if (threshold >= 3 && threshold <= 32767) {
+      checkConfig(chatId, { threshold });
+      bot.sendMessage(
+        chatId,
+        `设置成功。
+当前会话消息阈值：${chats.get(chatId).threshold} 条；
+当前会话消息有效间隔：${chats.get(chatId).timeout} 秒；
+当前会话时区：${getTimezoneAndRun(chatId, parseTimezone)}。`,
+        {
+          reply_to_message_id: msg.message_id
+        }
+      );
+    } else {
+      bot.sendMessage(chatId, '无效的阈值，请输入 3 和 32767 之间的数字。', {
         reply_to_message_id: msg.message_id
-      }
-    );
-  } else {
-    bot.sendMessage(chatId, '请输入大于等于 3 的阈值。', {
-      reply_to_message_id: msg.message_id
-    });
+      });
+    }
+  } catch (e) {
+    //
   }
 });
 
 bot.onText(/\/timezone/, (msg: Message) => {
-  const chatId = msg.chat.id;
-  const timezone = msg.text.split(' ')[1].trim();
-  if (zones.has(timezone)) {
-    checkConfig(chatId, { timezone });
-    bot.sendMessage(
-      chatId,
-      `设置成功。
-当前会话消息阈值：${chats[chatId].threshold} 条；
-当前会话消息有效间隔：${chats[chatId].timeout} 秒；
-当前会话时区：${chats[chatId].timezone}。`,
-      {
+  try {
+    const timezoneString = checkCommand(msg.text.trim())[0];
+    const chatId = msg.chat.id;
+    const timezone = parseInt(timezoneString, 10);
+    if (timezone >= -12 && timezone <= 12) {
+      checkConfig(chatId, { timezone });
+      bot.sendMessage(
+        chatId,
+        `设置成功。
+当前会话消息阈值：${chats.get(chatId).threshold} 条；
+当前会话消息有效间隔：${chats.get(chatId).timeout} 秒；
+当前会话时区：${getTimezoneAndRun(chatId, parseTimezone)}。`,
+        {
+          reply_to_message_id: msg.message_id
+        }
+      );
+    } else {
+      bot.sendMessage(chatId, '无效的时区，请输入 -12 和 12 之间的数字。', {
         reply_to_message_id: msg.message_id
-      }
-    );
-  } else {
-    bot.sendMessage(
-      chatId,
-      `无效时区，可用时区请查询：
-https://github.com/moment/moment-timezone/blob/develop/data/packed/latest.json`,
-      {
-        reply_to_message_id: msg.message_id
-      }
-    );
+      });
+    }
+  } catch (e) {
+    //
   }
 });
 
 bot.onText(/\/today/, (msg: Message) => {
-  const chatId = msg.chat.id;
+  try {
+    checkCommand(msg.text.trim());
 
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const start = new Date(now.getTime());
-  now.setHours(23, 59, 59, 999);
-  const end = now;
+    const chatId = msg.chat.id;
+    const [start, end] = getTimezoneAndRun(chatId, getDayStartAndEnd);
 
-  pool
-    .query(
-      'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time <= $3',
-      [chatId, start, end]
-    )
-    .then(res => {
-      if (res.rows.length === 0) {
-        bot.sendMessage(chatId, '本会话今天没有复读过哟，还请加油水群。');
-      } else {
-        const texts = [];
-        for (const [index, row] of res.rows.entries()) {
-          texts.push(
-            `<i>[${index}] ${formatDate(chatId, row.create_time)}</i>\n${
-              row.content
-            }`
-          );
-        }
-        bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
-      }
-    })
-    .catch(err => console.log(err.stack));
+    sendLogDurationInterval(chatId, start, end);
+  } catch (e) {
+    //
+  }
+});
+
+bot.onText(/\/recent/, (msg: Message) => {
+  try {
+    checkCommand(msg.text.trim());
+
+    const chatId = msg.chat.id;
+    const end = new Date();
+    const start = addHours(end, -24);
+
+    sendLogDurationInterval(chatId, start, end);
+  } catch (e) {
+    //
+  }
+});
+
+bot.onText(/\/day/, (msg: Message) => {
+  try {
+    const day = checkCommand(msg.text.trim())[0];
+
+    const chatId = msg.chat.id;
+
+    const [start, end] = getTimezoneAndRun(chatId, getDayStartAndEnd, day);
+
+    sendLogDurationInterval(chatId, start, end);
+  } catch (e) {
+    //
+  }
+});
+
+bot.onText(/\/interval/, (msg: Message) => {
+  try {
+    const [day1, day2] = checkCommand(msg.text.trim());
+
+    const chatId = msg.chat.id;
+
+    const [start1, end1] = getTimezoneAndRun(chatId, getDayStartAndEnd, day1);
+    const [start2, end2] = getTimezoneAndRun(chatId, getDayStartAndEnd, day2);
+
+    if (start1 > start2) {
+      sendLogDurationInterval(chatId, start2, end1);
+    } else {
+      sendLogDurationInterval(chatId, start1, end2);
+    }
+  } catch (e) {
+    //
+  }
 });
 
 bot.on('message', (msg: Message) => {
@@ -254,13 +277,13 @@ bot.on('message', (msg: Message) => {
 
 function trigger(key, chatId, msgId, text) {
   redisClient.incr(key, (err, result) => {
-    if (result === chats[chatId].threshold) {
+    if (result === chats.get(chatId).threshold) {
       messageCount++;
       bot.forwardMessage(chatId, chatId, msgId).then((res: Message) => {
         save(chatId, msgId, res.message_id, text);
       });
     }
-    redisClient.expire(key, chats[chatId].timeout);
+    redisClient.expire(key, chats.get(chatId).timeout);
   });
 }
 
@@ -301,27 +324,16 @@ function getDuration() {
   return result;
 }
 
-function formatDate(chatId, time: Date) {
-  const timezone = chats[chatId].timezone;
-  return (
-    moment(time)
-      .tz(timezone)
-      .format('YYYY-MM-DD HH:mm:ss') + ` ${timezone}`
-  );
-}
+const defaultSetting = {
+  threshold: 3,
+  timeout: 30,
+  timezone: 0
+};
 
 function checkConfig(chatId, toSet = null) {
-  if (!chats[chatId]) {
-    chats[chatId] = Object.assign(
-      {},
-      {
-        threshold: 3,
-        timeout: 30,
-        timezone: 'UTC'
-      },
-      toSet
-    );
-    const setting = chats[chatId];
+  if (!chats.has(chatId)) {
+    chats.set(chatId, Object.assign({}, defaultSetting, toSet));
+    const setting = chats.get(chatId);
     // 插入，因为数据库里有唯一索引，所以不用担心插入多次
     pool
       .query(
@@ -333,8 +345,8 @@ function checkConfig(chatId, toSet = null) {
       })
       .catch(err => console.log(err));
   } else if (toSet) {
-    chats[chatId] = Object.assign({}, chats[chatId], toSet);
-    const setting = chats[chatId];
+    chats.set(chatId, Object.assign({}, chats.get(chatId), toSet));
+    const setting = chats.get(chatId);
     // 更新
     pool
       .query(
@@ -346,4 +358,87 @@ function checkConfig(chatId, toSet = null) {
       })
       .catch(err => console.log(err));
   }
+}
+
+function checkCommand(msg: string) {
+  const items = msg.split(' ').filter(i => i);
+  const command = items[0];
+  const splitedComand = command.split('@');
+  const uname = splitedComand[1];
+  if (uname && uname !== username) {
+    throw new Error(uname);
+  }
+  return items.slice(1);
+}
+
+const globalTimezone = Math.round(new Date().getTimezoneOffset() / -60);
+
+function getTimezoneAndRun(chatId, func, arg1 = null, arg2 = null) {
+  const timezone = chats.get(chatId).timezone;
+  if (!arg1) {
+    return func(timezone);
+  } else if (!arg2) {
+    return func(timezone, arg1);
+  } else {
+    return func(timezone, arg1, arg2);
+  }
+}
+
+function getDayStartAndEnd(timezone, timeString = null) {
+  const offset = timezone - globalTimezone;
+
+  let time;
+  if (timeString) {
+    time = new Date(timeString);
+  } else {
+    const now = new Date();
+    const temp = addHours(now, offset);
+    time = startOfDay(temp);
+  }
+
+  const start = addHours(time, -offset);
+  const end = addHours(time, 24 - offset);
+
+  return [start, end];
+}
+
+function formatDate(timezone, time: Date) {
+  return format(
+    addHours(time, timezone - globalTimezone),
+    'YYYY-MM-DD HH:mm:ss'
+  );
+}
+
+function parseTimezone(zone) {
+  if (zone >= 0) {
+    return `GMT+${zone}`;
+  } else {
+    return `GMT${zone}`;
+  }
+}
+
+function sendLogDurationInterval(chatId, start, end) {
+  pool
+    .query(
+      'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time < $3',
+      [chatId, start, end]
+    )
+    .then(res => {
+      if (res.rows.length === 0) {
+        bot.sendMessage(chatId, '本会话这段时间没有复读过哟，还请加油水群。');
+      } else {
+        const texts = [];
+        for (const [index, row] of res.rows.entries()) {
+          texts.push(
+            `<i>[${index}] ${getTimezoneAndRun(
+              chatId,
+              formatDate,
+              row.create_time
+            )}</i>\n${row.content}`
+          );
+        }
+        bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
+      }
+    })
+    .catch(err => console.log(err.stack));
 }
