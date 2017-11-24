@@ -520,7 +520,7 @@ function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
     ])
     .then(res => {
       if (res.rows.length > 0) {
-        const msgIds = JSON.parse(res.rows[0].msg_ids);
+        const msgIds = res.rows[0].msg_ids;
         func(chatId, msgIds[index]);
       } else {
         bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
