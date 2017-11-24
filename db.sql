@@ -28,6 +28,6 @@ CREATE TABLE record (
   id SERIAL PRIMARY KEY,
   chat_id BIGINT NOT NULL,
   msg_id BIGINT NOT NULL,
-  msg_ids JSONB
+  msg_ids JSONB NOT NULL
 );
 CREATE UNIQUE INDEX ON record (chat_id, msg_id);

@@ -103,7 +103,7 @@ bot.onText(/\/status/, (msg: Message) => {
 
 bot.onText(/\/timeout/, (msg: Message) => {
   try {
-    const timeoutString = checkCommand(msg.text.trim())[0];
+    const [timeoutString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
     const timeout = parseInt(timeoutString, 10);
     if (timeout >= 10 && timeout <= 32767) {
@@ -130,7 +130,7 @@ bot.onText(/\/timeout/, (msg: Message) => {
 
 bot.onText(/\/threshold/, (msg: Message) => {
   try {
-    const thresholdString = checkCommand(msg.text.trim())[0];
+    const [thresholdString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
     const threshold = parseInt(thresholdString, 10);
     if (threshold >= 3 && threshold <= 32767) {
@@ -157,7 +157,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
 
 bot.onText(/\/timezone/, (msg: Message) => {
   try {
-    const timezoneString = checkCommand(msg.text.trim())[0];
+    const [timezoneString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
     const timezone = parseInt(timezoneString, 10);
     if (timezone >= -12 && timezone <= 12) {
@@ -211,7 +211,7 @@ bot.onText(/\/recent/, (msg: Message) => {
 
 bot.onText(/\/day/, (msg: Message) => {
   try {
-    const day = checkCommand(msg.text.trim())[0];
+    const [day] = checkCommand(msg.text.trim());
 
     const chatId = msg.chat.id.toString();
 
@@ -236,6 +236,50 @@ bot.onText(/\/interval/, (msg: Message) => {
       sendLogDurationInterval(chatId, start2, end1);
     } else {
       sendLogDurationInterval(chatId, start1, end2);
+    }
+  } catch (e) {
+    //
+  }
+});
+
+bot.onText(/\/anchor/, (msg: Message) => {
+  try {
+    const [index] = checkCommand(msg.text.trim());
+    const chatId = msg.chat.id;
+    const replyToMessage = msg.reply_to_message;
+    const msgId = replyToMessage.message_id;
+    const fromMsgId = msg.message_id;
+    if (replyToMessage.from.username !== username) {
+      bot.sendMessage(chatId, '你在回复谁呀！', {
+        reply_to_message_id: fromMsgId
+      });
+    } else {
+      getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
+        bot.sendMessage(chatIdR, '似乎找到了。', {
+          reply_to_message_id: msgIdR
+        });
+      });
+    }
+  } catch (e) {
+    //
+  }
+});
+
+bot.onText(/\/forward/, (msg: Message) => {
+  try {
+    const [index] = checkCommand(msg.text.trim());
+    const chatId = msg.chat.id;
+    const replyToMessage = msg.reply_to_message;
+    const msgId = replyToMessage.message_id;
+    const fromMsgId = msg.message_id;
+    if (replyToMessage.from.username !== username) {
+      bot.sendMessage(chatId, '你在回复谁呀！', {
+        reply_to_message_id: fromMsgId
+      });
+    } else {
+      getRecordAndRun(chatId, msgId, fromMsgId, index, (chatIdR, msgIdR) => {
+        bot.forwardMessage(chatIdR, chatIdR, msgIdR);
+      });
     }
   } catch (e) {
     //
@@ -444,8 +488,45 @@ function sendLogDurationInterval(chatId, start, end, anchor = null) {
             )} ${parseTimezone(timezone)}</i>\n${row.content}`
           );
         }
-        bot.sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' });
+        bot
+          .sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' })
+          .then((msg: Message) => {
+            const msgId = msg.message_id;
+            const msgIds = res.rows.map(r => r.msg_id);
+            saveRecord(chatId, msgId, msgIds);
+          });
       }
     })
     .catch(err => console.log(err.stack));
+}
+
+function saveRecord(chatId, msgId, msgIds) {
+  pool
+    .query(
+      'INSERT INTO record (chat_id, msg_id, msg_ids) VALUES ($1, $2, $3)',
+      [chatId, msgId, msgIds]
+    )
+    .then(res => {
+      // do nothing
+    })
+    .catch(err => console.log(err));
+}
+
+function getRecordAndRun(chatId, msgId, fromMsgId, index, func) {
+  pool
+    .query('SELECT * FROM record WHERE chat_id = $1 AND msg_id = $2', [
+      chatId,
+      msgId
+    ])
+    .then(res => {
+      if (res.rows.length > 0) {
+        const msgIds = res.rows[0].msg_ids;
+        func(chatId, msgIds[index]);
+      } else {
+        bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
+          reply_to_message_id: fromMsgId
+        });
+      }
+    })
+    .catch(err => console.log(err));
 }
