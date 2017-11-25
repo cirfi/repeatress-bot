@@ -398,12 +398,14 @@ function trigger(
   msgId: number | string,
   text: string
 ): void {
-  redisClient.incr(key, (err, result) => {
+  redisClient.hincrby(key, 'count', 1, (err, result) => {
     if (result === chats.get(chatId).threshold) {
       messageCount++;
       bot.forwardMessage(chatId, chatId, msgId).then((res: Message) => {
         save(chatId, msgId, res.message_id, text);
       });
+    } else if (result === 1) {
+      redisClient.hset(key, 'text', text);
     }
     redisClient.expire(key, chats.get(chatId).timeout);
   });
