@@ -726,12 +726,12 @@ function getRecordAndRun(
     ])
     .then(res => {
       if (res.rows.length > 0) {
-        if (index >= res.rows.length) {
+        const msgIds = res.rows[0].msg_ids;
+        if (index >= msgIds.length) {
           bot.sendMessage(chatId, '诶，复读姬有复读过这么多消息吗？', {
             reply_to_message_id: fromMsgId
           });
         } else {
-          const msgIds = res.rows[0].msg_ids;
           func(chatId, msgIds[index], fromMsgId);
         }
       } else {
