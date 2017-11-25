@@ -369,11 +369,11 @@ bot.on('message', (msg: Message) => {
       '[空]'} ${msg.caption}`;
   }
 
-  text = text.trim();
-
   if (!text) {
     return;
   }
+
+  text = text.trim();
 
   const hash = crypto
     .createHash('md5')
