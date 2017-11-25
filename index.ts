@@ -334,7 +334,9 @@ bot.on('message', (msg: Message) => {
   }
 
   if (!text && msg.sticker) {
-    text = `(sticker) ${msg.sticker.file_id}`;
+    text = `(sticker${msg.sticker.emoji}) ${msg.sticker.file_id} ${
+      msg.sticker.set_name
+    }`;
   }
 
   if (!text && msg.photo) {
