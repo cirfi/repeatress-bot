@@ -500,29 +500,44 @@ function sendLog(chatId, sql, params, message) {
   pool
     .query(sql, params)
     .then(res => {
-      if (res.rows.length === 0) {
+      const rows = res.rows;
+      if (rows.length === 0) {
         bot.sendMessage(chatId, message);
       } else {
         const texts = [];
         const timezone = chats.get(chatId).timezone;
-        for (const [index, row] of res.rows.entries()) {
+        for (const [index, row] of rows.entries()) {
+          if (index > 19) {
+            break;
+          }
           texts.push(
             `<i>[${index}] ${formatDate(
               timezone,
               row.create_time
-            )} ${parseTimezone(timezone)}</i>\n${row.content}`
+            )} ${parseTimezone(timezone)}</i>\n${restrictLength(row.content)}`
           );
+        }
+        if (rows.length > 20) {
+          texts.push('<i>[ More ... ]</i>');
         }
         bot
           .sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' })
           .then((msg: Message) => {
             const msgId = msg.message_id;
-            const msgIds = res.rows.map(r => r.msg_id);
+            const msgIds = rows.map(r => r.msg_id);
             saveRecord(chatId, msgId, msgIds);
           });
       }
     })
     .catch(err => console.log(err.stack));
+}
+
+function restrictLength(text) {
+  if (text.length < 140) {
+    return text;
+  } else {
+    return text.slice(0, 180) + '<i>[ More ... ]</i>';
+  }
 }
 
 function saveRecord(chatId, msgId, msgIds) {
