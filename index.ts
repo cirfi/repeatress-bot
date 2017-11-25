@@ -3,7 +3,6 @@ import * as crypto from 'crypto';
 import { addHours, format, getMonth, getYear, startOfDay } from 'date-fns';
 import * as express from 'express';
 import * as fs from 'fs';
-// import * as moment from 'moment-timezone';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
 import { Pool } from 'pg';
@@ -67,11 +66,13 @@ if (releaseMode === 1) {
   bot.deleteWebHook();
 }
 
+// 机器人的用户名
 let username = '';
 bot.getMe().then((user: TelegramBot.User) => {
   username = user.username;
 });
 
+// 获取当前会话状态，以及复读姬运行状态
 bot.onText(/\/status/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
@@ -101,6 +102,7 @@ bot.onText(/\/status/, (msg: Message) => {
   }
 });
 
+// 设置当前会话消息有效间隔
 bot.onText(/\/timeout/, (msg: Message) => {
   try {
     const [timeoutString] = checkCommand(msg.text.trim());
@@ -128,6 +130,7 @@ bot.onText(/\/timeout/, (msg: Message) => {
   }
 });
 
+// 设置当前会话消息阈值
 bot.onText(/\/threshold/, (msg: Message) => {
   try {
     const [thresholdString] = checkCommand(msg.text.trim());
@@ -155,6 +158,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
   }
 });
 
+// 设置当前会话时区
 bot.onText(/\/timezone/, (msg: Message) => {
   try {
     const [timezoneString] = checkCommand(msg.text.trim());
@@ -182,6 +186,7 @@ bot.onText(/\/timezone/, (msg: Message) => {
   }
 });
 
+// 今天复读了哪些消息？
 bot.onText(/\/today/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
@@ -195,6 +200,7 @@ bot.onText(/\/today/, (msg: Message) => {
   }
 });
 
+// 最近 24 小时复读了哪些消息？
 bot.onText(/\/recent/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
@@ -209,6 +215,7 @@ bot.onText(/\/recent/, (msg: Message) => {
   }
 });
 
+// 某天复读了哪些消息？
 bot.onText(/\/day/, (msg: Message) => {
   try {
     const [day] = checkCommand(msg.text.trim());
@@ -223,6 +230,7 @@ bot.onText(/\/day/, (msg: Message) => {
   }
 });
 
+// 某天至某天复读了哪些消息？
 bot.onText(/\/interval/, (msg: Message) => {
   try {
     const [day1, day2] = checkCommand(msg.text.trim());
@@ -242,6 +250,7 @@ bot.onText(/\/interval/, (msg: Message) => {
   }
 });
 
+// 检索消息
 bot.onText(/\/search/, (msg: Message) => {
   try {
     const [text] = checkCommand(msg.text.trim());
@@ -265,6 +274,7 @@ bot.onText(/\/search/, (msg: Message) => {
   }
 });
 
+// 定位到消息
 bot.onText(/\/anchor/, (msg: Message) => {
   handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
@@ -286,6 +296,7 @@ bot.onText(/\/anchor/, (msg: Message) => {
   });
 });
 
+// 再转发一遍
 bot.onText(/\/forward/, (msg: Message) => {
   handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
@@ -338,7 +349,19 @@ bot.on('message', (msg: Message) => {
   trigger(key, chatId, msgId, text);
 });
 
-function trigger(key, chatId, msgId, text) {
+/**
+ * 复读触发器
+ * @param key 会话ID加上文字内容的哈希
+ * @param chatId 会话ID，用于获取配置
+ * @param msgId 消息ID，用于复读
+ * @param text 消息内容，用于存档
+ */
+function trigger(
+  key: string,
+  chatId: string,
+  msgId: number | string,
+  text: string
+): void {
   redisClient.incr(key, (err, result) => {
     if (result === chats.get(chatId).threshold) {
       messageCount++;
@@ -350,14 +373,29 @@ function trigger(key, chatId, msgId, text) {
   });
 }
 
-function save(chatId, fwdMsgId, msgId, text) {
+/**
+ * 复读消息存档
+ * @param chatId 会话ID
+ * @param fwdMsgId 被转发的消息ID
+ * @param msgId 复读姬转发后的消息的ID
+ * @param 消息内容
+ */
+function save(
+  chatId: string,
+  fwdMsgId: number | string,
+  msgId: number | string,
+  text: string
+): void {
   pool.query(
     'INSERT INTO message (chat_id, fwd_msg_id, msg_id, content, create_time) VALUES ($1, $2, $3, $4, $5)',
     [chatId, fwdMsgId, msgId, text, new Date()]
   );
 }
 
-function getDuration() {
+/**
+ * 获取启动时间
+ */
+function getDuration(): string {
   const totalSeconds = process.hrtime(startTime)[0];
   const seconds = totalSeconds % 60;
 
@@ -387,13 +425,25 @@ function getDuration() {
   return result;
 }
 
-const defaultSetting = {
+interface Setting {
+  threshold?: number;
+  timeout?: number;
+  timezone?: number;
+}
+
+// 默认配置
+const defaultSetting: Setting = {
   threshold: 3,
   timeout: 30,
   timezone: 0
 };
 
-function checkConfig(chatId, toSet = null) {
+/**
+ * 检查配置
+ * @param chatId 会话ID
+ * @param toSet 需要设置的内容，留空则只设置默认或不设置
+ */
+function checkConfig(chatId: string, toSet: Setting = null): void {
   if (!chats.has(chatId)) {
     chats.set(chatId, Object.assign({}, defaultSetting, toSet));
     const setting = chats.get(chatId);
@@ -423,7 +473,11 @@ function checkConfig(chatId, toSet = null) {
   }
 }
 
-function checkCommand(msg: string) {
+/**
+ * 校验命令是不是发给自己的，如果是则返回参数，否则抛出异常
+ * @param msg 消息内容
+ */
+function checkCommand(msg: string): string[] {
   const items = msg.split(' ').filter(i => i);
   const command = items[0];
   const splitedComand = command.split('@');
@@ -434,20 +488,43 @@ function checkCommand(msg: string) {
   return items.slice(1);
 }
 
+/**
+ * 当前运行环境的时区
+ */
 const globalTimezone = Math.round(new Date().getTimezoneOffset() / -60);
 
-function getTimezoneAndRun(chatId, func, arg1 = null, arg2 = null) {
+/**
+ * 获取会话的时区，并执行函数
+ * @param chatId 会话 ID
+ * @param func 执行的函数
+ * @param arg2 函数参数 2
+ * @param arg3 函数参数 3
+ */
+function getTimezoneAndRun(
+  chatId: string,
+  func: (timezone: number, arg2?: any, arg3?: any) => any,
+  arg2: any = null,
+  arg3: any = null
+): any {
   const timezone = chats.get(chatId).timezone;
-  if (!arg1) {
+  if (!arg2) {
     return func(timezone);
-  } else if (!arg2) {
-    return func(timezone, arg1);
+  } else if (!arg3) {
+    return func(timezone, arg2);
   } else {
-    return func(timezone, arg1, arg2);
+    return func(timezone, arg2, arg3);
   }
 }
 
-function getDayStartAndEnd(timezone, timeString = null) {
+/**
+ * 获取一天的开始和结束
+ * @param timezone 时区
+ * @param timeString 时间，缺省为今天
+ */
+function getDayStartAndEnd(
+  timezone: number,
+  timeString: string = null
+): Date[] {
   const offset = timezone - globalTimezone;
 
   const now = new Date();
@@ -472,14 +549,23 @@ function getDayStartAndEnd(timezone, timeString = null) {
   return [start, end];
 }
 
-function formatDate(timezone, time: Date) {
+/**
+ * 按照格式输出时间
+ * @param timezone 时区
+ * @param time 时间
+ */
+function formatDate(timezone: number, time: Date): string {
   return format(
     addHours(time, timezone - globalTimezone),
     'YYYY-MM-DD HH:mm:ss'
   );
 }
 
-function parseTimezone(zone) {
+/**
+ * 将时区转换成 GMT 字符串
+ * @param zone 时区
+ */
+function parseTimezone(zone: number): string {
   if (zone >= 0) {
     return `GMT+${zone}`;
   } else {
@@ -487,7 +573,13 @@ function parseTimezone(zone) {
   }
 }
 
-function sendLogDurationInterval(chatId, start, end) {
+/**
+ * 发送一段时间内的消息记录
+ * @param chatId 会话ID
+ * @param start 开始时间
+ * @param end 结束时间
+ */
+function sendLogDurationInterval(chatId: string, start: Date, end: Date) {
   sendLog(
     chatId,
     'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time < $3',
@@ -496,7 +588,19 @@ function sendLogDurationInterval(chatId, start, end) {
   );
 }
 
-function sendLog(chatId, sql, params, message) {
+/**
+ * 发送消息记录
+ * @param chatId 会话ID
+ * @param sql 查询语句
+ * @param params 查询语句的参数
+ * @param message 没查询到结果的回应
+ */
+function sendLog(
+  chatId: string,
+  sql: string,
+  params: any[],
+  message: string
+): void {
   pool
     .query(sql, params)
     .then(res => {
@@ -532,7 +636,11 @@ function sendLog(chatId, sql, params, message) {
     .catch(err => console.log(err.stack));
 }
 
-function restrictLength(text) {
+/**
+ * 限制发送消息的长度
+ * @param text 消息
+ */
+function restrictLength(text: string): string {
   if (text.length < 140) {
     return text;
   } else {
@@ -540,7 +648,17 @@ function restrictLength(text) {
   }
 }
 
-function saveRecord(chatId, msgId, msgIds) {
+/**
+ * 保存查询记录
+ * @param chatId 会话ID
+ * @param msgId 消息ID
+ * @param msgIds 查询到的消息ID
+ */
+function saveRecord(
+  chatId: string,
+  msgId: number | string,
+  msgIds: number[] | string[]
+) {
   pool
     .query(
       'INSERT INTO record (chat_id, msg_id, msg_ids) VALUES ($1, $2, $3)',
@@ -552,14 +670,20 @@ function saveRecord(chatId, msgId, msgIds) {
     .catch(err => console.log(err));
 }
 
+/**
+ * 查询到记录并且运行函数
+ * @param chatId 会话ID
+ * @param msgId 消息ID
+ * @param fromMsgId 查询命令来自的消息ID
+ * @param index 消息是之前查询结果的第几个？
+ * @param func 函数
+ */
 function getRecordAndRun(
   chatId,
   msgId,
   fromMsgId,
   index,
-  func: (chatId: number, msgId: number, replyToMsgId: number) => void,
-  replyToMsgId,
-  forwardToChatId = null
+  func: (chatId: number, msgId: number, replyToMsgId: number) => void
 ) {
   pool
     .query('SELECT * FROM record WHERE chat_id = $1 AND msg_id = $2', [
@@ -570,11 +694,11 @@ function getRecordAndRun(
       if (res.rows.length > 0) {
         if (index >= res.rows.length) {
           bot.sendMessage(chatId, '诶，复读姬有复读过这么多消息吗？', {
-            reply_to_message_id: replyToMsgId
+            reply_to_message_id: fromMsgId
           });
         } else {
           const msgIds = res.rows[0].msg_ids;
-          func(chatId, msgIds[index], replyToMsgId);
+          func(chatId, msgIds[index], fromMsgId);
         }
       } else {
         bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
@@ -585,10 +709,15 @@ function getRecordAndRun(
     .catch(err => console.log(err));
 }
 
+/**
+ * 消息记录相关方法
+ * @param msg 消息
+ * @param func 函数
+ */
 function handleMessageRecord(
   msg: Message,
   func: (chatId: number, msgId: number, replyToMsgId: number) => void
-) {
+): void {
   let index;
   [index] = checkCommand(msg.text.trim()).map(i => parseInt(i, 10));
   const chatId = msg.chat.id;
@@ -606,6 +735,6 @@ function handleMessageRecord(
       reply_to_message_id: fromMsgId
     });
   } else {
-    getRecordAndRun(chatId, msgId, fromMsgId, index, func, fromMsgId);
+    getRecordAndRun(chatId, msgId, fromMsgId, index, func);
   }
 }
