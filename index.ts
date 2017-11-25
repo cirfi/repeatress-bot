@@ -310,15 +310,15 @@ bot.onText(/\/anchor/, (msg: Message) => {
 });
 
 bot.onText(/\/forward/, (msg: Message) => {
-  handleMessageRecord(msg, (chatIdR, msgIdR, replyToMsgId) => {
+  handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
-      .forwardMessage(chatIdR, chatIdR, msgIdR)
+      .forwardMessage(chatId, chatId, msgId)
       .then((m: Message) => {
         //
       })
       .catch(reason => {
         bot.sendMessage(
-          chatIdR,
+          chatId,
           '找不到啦，是谁残忍地把复读姬的消息吃掉了吗？',
           {
             reply_to_message_id: replyToMsgId
@@ -570,8 +570,14 @@ function getRecordAndRun(
     ])
     .then(res => {
       if (res.rows.length > 0) {
-        const msgIds = res.rows[0].msg_ids;
-        func(chatId, msgIds[index], replyToMsgId);
+        if (index >= res.rows.length) {
+          bot.sendMessage(chatId, '诶，复读姬有复读过这么多消息吗？', {
+            reply_to_message_id: replyToMsgId
+          });
+        } else {
+          const msgIds = res.rows[0].msg_ids;
+          func(chatId, msgIds[index], replyToMsgId);
+        }
       } else {
         bot.sendMessage(chatId, '这条消息的记录没找到哟～', {
           reply_to_message_id: fromMsgId
@@ -586,11 +592,17 @@ function handleMessageRecord(
   func: (chatId: number, msgId: number, replyToMsgId: number) => void
 ) {
   let index;
-  [index] = checkCommand(msg.text.trim());
+  [index] = checkCommand(msg.text.trim()).map(i => parseInt(i, 10));
   const chatId = msg.chat.id;
-  const replyToMessage = msg.reply_to_message;
-  const msgId = replyToMessage.message_id;
   const fromMsgId = msg.message_id;
+  const replyToMessage = msg.reply_to_message;
+  if (!replyToMessage) {
+    bot.sendMessage(chatId, '这条命令，请以回复复读姬搜索结果的方式使用啦。', {
+      reply_to_message_id: fromMsgId
+    });
+    return;
+  }
+  const msgId = replyToMessage.message_id;
   if (replyToMessage.from.username !== username) {
     bot.sendMessage(chatId, '你在回复谁呀！', {
       reply_to_message_id: fromMsgId
