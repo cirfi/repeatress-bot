@@ -254,35 +254,12 @@ bot.onText(/\/search/, (msg: Message) => {
       return;
     }
 
-    pool
-      .query(
-        "SELECT * FROM message WHERE chat_id = $1 AND content LIKE CONCAT('%', $2::text, '%')",
-        [chatId, text]
-      )
-      .then(res => {
-        if (res.rows.length > 0) {
-          const texts = [];
-          const timezone = chats.get(chatId).timezone;
-          for (const [index, row] of res.rows.entries()) {
-            texts.push(
-              `<i>[${index}] ${formatDate(
-                timezone,
-                row.create_time
-              )} ${parseTimezone(timezone)}</i>\n${row.content}`
-            );
-          }
-          bot
-            .sendMessage(chatId, texts.join('\n\n'), { parse_mode: 'HTML' })
-            .then((m: Message) => {
-              const msgId = m.message_id;
-              const msgIds = res.rows.map(r => r.msg_id);
-              saveRecord(chatId, msgId, msgIds);
-            });
-        } else {
-          bot.sendMessage(chatId, '没有找到数据呢。');
-        }
-      })
-      .catch(e => console.log(e));
+    sendLog(
+      chatId,
+      "SELECT * FROM message WHERE chat_id = $1 AND content LIKE CONCAT('%', $2::text, '%')",
+      [chatId, text],
+      '复读姬没复读过这样的话。'
+    );
   } catch (e) {
     //
   }
@@ -510,15 +487,21 @@ function parseTimezone(zone) {
   }
 }
 
-function sendLogDurationInterval(chatId, start, end, anchor = null) {
+function sendLogDurationInterval(chatId, start, end) {
+  sendLog(
+    chatId,
+    'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time < $3',
+    [chatId, start, end],
+    '这段时间复读姬还没复读过哟，是不是太松懈了？'
+  );
+}
+
+function sendLog(chatId, sql, params, message) {
   pool
-    .query(
-      'SELECT * FROM message WHERE chat_id = $1 AND create_time >= $2 AND create_time < $3',
-      [chatId, start, end]
-    )
+    .query(sql, params)
     .then(res => {
       if (res.rows.length === 0) {
-        bot.sendMessage(chatId, '本会话这段时间没有复读过哟，还请加油水群。');
+        bot.sendMessage(chatId, message);
       } else {
         const texts = [];
         const timezone = chats.get(chatId).timezone;
