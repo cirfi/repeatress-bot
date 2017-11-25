@@ -482,7 +482,7 @@ function getDayStartAndEnd(timezone, timeString = null) {
     const length = dashs.length;
 
     const day = dashs[length - 1];
-    const month = dashs[length - 2] || getMonth(localTime);
+    const month = dashs[length - 2] || getMonth(localTime) + 1;
     const year = dashs[length - 3] || getYear(localTime);
     time = new Date(`${year}-${month}-${day}`);
   } else {
