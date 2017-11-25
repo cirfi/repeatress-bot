@@ -478,7 +478,7 @@ function checkConfig(chatId: string, toSet: Setting = null): void {
  * @param msg 消息内容
  */
 function checkCommand(msg: string): string[] {
-  const items = msg.split(' ').filter(i => i);
+  const items = msg.split(/\s+/);
   const command = items[0];
   const splitedComand = command.split('@');
   const uname = splitedComand[1];
