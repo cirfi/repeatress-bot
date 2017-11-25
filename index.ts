@@ -316,6 +316,12 @@ bot.onText(/\/forward/, (msg: Message) => {
   });
 });
 
+// 因为这个 API 的 Video 有属性缺漏，所以只能自己定义一个了
+interface Video extends TelegramBot.Video {
+  file_id?: string;
+  file_size?: number;
+}
+
 bot.on('message', (msg: Message) => {
   const chatId = msg.chat.id.toString();
   const msgId = msg.message_id;
@@ -331,9 +337,37 @@ bot.on('message', (msg: Message) => {
     text = `(sticker) ${msg.sticker.file_id}`;
   }
 
-  // if (!text && msg.document) {
-  //   text = msg.document.file_id;
-  // }
+  if (!text && msg.photo) {
+    text = `(photo) [${msg.photo.map(p => p.file_id).join(',')}] ${
+      msg.caption
+    }`;
+  }
+
+  if (!text && msg.voice) {
+    text = `(voice) ${msg.voice.file_id} ${msg.caption}`;
+  }
+
+  if (!text && msg.audio) {
+    text = `(audio) ${msg.audio.file_id} ${msg.audio.title || '[空]'} ${
+      msg.caption
+    }`;
+  }
+
+  if (!text && msg.video_note) {
+    text = `(video note) ${msg.video_note.file_id} ${msg.caption}`;
+  }
+
+  if (!text && msg.video) {
+    const video: Video = msg.video;
+    text = `(video) ${video.file_id} ${msg.caption}`;
+  }
+
+  if (!text && msg.document) {
+    text = `(document) ${msg.document.file_id} ${msg.document.file_name ||
+      '[空]'} ${msg.caption}`;
+  }
+
+  text = text.trim();
 
   if (!text) {
     return;
