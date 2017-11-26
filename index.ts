@@ -11,7 +11,7 @@ import * as redis from 'redis';
 import config from './config';
 
 // 启动时间
-const startTime = process.hrtime();
+const startTime = new Date().getTime();
 let messageCount = 0;
 
 const token = config.token;
@@ -437,7 +437,7 @@ function save(
  * 获取启动时间
  */
 function getDuration(): string {
-  const totalSeconds = process.hrtime(startTime)[0];
+  const totalSeconds = Math.round((new Date().getTime() - startTime) / 1000);
   const seconds = totalSeconds % 60;
 
   const totalMinutes = Math.floor(totalSeconds / 60);
