@@ -186,6 +186,10 @@ bot.onText(/\/timezone/, (msg: Message) => {
   }
 });
 
+bot.onText(/\/cache/, (msg: Message) => {
+  const chatId = msg.chat.id.toString();
+});
+
 // 今天复读了哪些消息？
 bot.onText(/\/today/, (msg: Message) => {
   try {
@@ -340,33 +344,32 @@ bot.on('message', (msg: Message) => {
   }
 
   if (!text && msg.photo) {
-    text = `(photo) [${msg.photo.map(p => p.file_id).join(',')}] ${
-      msg.caption
-    }`;
+    text = `(photo) [${msg.photo
+      .map(p => p.file_id)
+      .join(',')}] ${msg.caption || ''}`;
   }
 
   if (!text && msg.voice) {
-    text = `(voice) ${msg.voice.file_id} ${msg.caption}`;
+    text = `(voice) ${msg.voice.file_id} ${msg.caption || ''}`;
   }
 
   if (!text && msg.audio) {
-    text = `(audio) ${msg.audio.file_id} ${msg.audio.title || '[空]'} ${
-      msg.caption
-    }`;
+    text = `(audio) ${msg.audio.file_id} ${msg.audio.title ||
+      '[空]'} ${msg.caption || ''}`;
   }
 
   if (!text && msg.video_note) {
-    text = `(video note) ${msg.video_note.file_id} ${msg.caption}`;
+    text = `(video note) ${msg.video_note.file_id} ${msg.caption || ''}`;
   }
 
   if (!text && msg.video) {
     const video: Video = msg.video;
-    text = `(video) ${video.file_id} ${msg.caption}`;
+    text = `(video) ${video.file_id} ${msg.caption || ''}`;
   }
 
   if (!text && msg.document) {
     text = `(document) ${msg.document.file_id} ${msg.document.file_name ||
-      '[空]'} ${msg.caption}`;
+      '[空]'} ${msg.caption || ''}`;
   }
 
   if (!text) {
