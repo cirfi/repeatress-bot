@@ -11,7 +11,6 @@ import * as redis from 'redis';
 import config from './config';
 
 // 启动时间
-const startTime = new Date().getTime();
 let messageCount = 0;
 
 const token = config.token;
@@ -73,7 +72,7 @@ bot.getMe().then((user: TelegramBot.User) => {
 });
 
 // 获取当前会话状态，以及复读姬运行状态
-bot.onText(/\/status/, (msg: Message) => {
+bot.onText(/^\/status/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
@@ -103,7 +102,7 @@ bot.onText(/\/status/, (msg: Message) => {
 });
 
 // 设置当前会话消息有效间隔
-bot.onText(/\/timeout/, (msg: Message) => {
+bot.onText(/^\/timeout/, (msg: Message) => {
   try {
     const [timeoutString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
@@ -131,7 +130,7 @@ bot.onText(/\/timeout/, (msg: Message) => {
 });
 
 // 设置当前会话消息阈值
-bot.onText(/\/threshold/, (msg: Message) => {
+bot.onText(/^\/threshold/, (msg: Message) => {
   try {
     const [thresholdString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
@@ -159,7 +158,7 @@ bot.onText(/\/threshold/, (msg: Message) => {
 });
 
 // 设置当前会话时区
-bot.onText(/\/timezone/, (msg: Message) => {
+bot.onText(/^\/timezone/, (msg: Message) => {
   try {
     const [timezoneString] = checkCommand(msg.text.trim());
     const chatId = msg.chat.id.toString();
@@ -186,12 +185,12 @@ bot.onText(/\/timezone/, (msg: Message) => {
   }
 });
 
-bot.onText(/\/cache/, (msg: Message) => {
+bot.onText(/^\/cache/, (msg: Message) => {
   const chatId = msg.chat.id.toString();
 });
 
 // 今天复读了哪些消息？
-bot.onText(/\/today/, (msg: Message) => {
+bot.onText(/^\/today/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
 
@@ -205,7 +204,7 @@ bot.onText(/\/today/, (msg: Message) => {
 });
 
 // 最近 24 小时复读了哪些消息？
-bot.onText(/\/recent/, (msg: Message) => {
+bot.onText(/^\/recent/, (msg: Message) => {
   try {
     checkCommand(msg.text.trim());
 
@@ -220,7 +219,7 @@ bot.onText(/\/recent/, (msg: Message) => {
 });
 
 // 某天复读了哪些消息？
-bot.onText(/\/day/, (msg: Message) => {
+bot.onText(/^\/day/, (msg: Message) => {
   try {
     const [day] = checkCommand(msg.text.trim());
 
@@ -235,7 +234,7 @@ bot.onText(/\/day/, (msg: Message) => {
 });
 
 // 某天至某天复读了哪些消息？
-bot.onText(/\/interval/, (msg: Message) => {
+bot.onText(/^\/interval/, (msg: Message) => {
   try {
     const [day1, day2] = checkCommand(msg.text.trim());
 
@@ -255,7 +254,7 @@ bot.onText(/\/interval/, (msg: Message) => {
 });
 
 // 检索消息
-bot.onText(/\/search/, (msg: Message) => {
+bot.onText(/^\/search/, (msg: Message) => {
   try {
     const [text] = checkCommand(msg.text.trim());
 
@@ -279,7 +278,7 @@ bot.onText(/\/search/, (msg: Message) => {
 });
 
 // 定位到消息
-bot.onText(/\/anchor/, (msg: Message) => {
+bot.onText(/^\/anchor/, (msg: Message) => {
   handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
       .sendMessage(chatId, '似乎找到了。', {
@@ -301,7 +300,7 @@ bot.onText(/\/anchor/, (msg: Message) => {
 });
 
 // 再转发一遍
-bot.onText(/\/forward/, (msg: Message) => {
+bot.onText(/^\/forward/, (msg: Message) => {
   handleMessageRecord(msg, (chatId, msgId, replyToMsgId) => {
     bot
       .forwardMessage(chatId, chatId, msgId)
@@ -437,7 +436,7 @@ function save(
  * 获取启动时间
  */
 function getDuration(): string {
-  const totalSeconds = Math.round((new Date().getTime() - startTime) / 1000);
+  const totalSeconds = Math.round(process.uptime());
   const seconds = totalSeconds % 60;
 
   const totalMinutes = Math.floor(totalSeconds / 60);
