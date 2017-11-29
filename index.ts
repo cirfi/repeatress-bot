@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import * as redis from 'redis';
 
 import config from './config';
+import applyRouter from './router';
 
 // 启动时间
 let messageCount = 0;
@@ -52,10 +53,11 @@ if (releaseMode === 1) {
   bot = new TelegramBot(token);
   bot.setWebHook(`${url}/bot${token}`);
 
-  app.post(`/bot${token}`, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  });
+  // app.post(`/bot${token}`, (req, res) => {
+  //   bot.processUpdate(req.body);
+  //   res.sendStatus(200);
+  // });
+  applyRouter(app, bot);
 
   app.listen(port, () => {
     console.log(`Express server is listening on ${port}`);
