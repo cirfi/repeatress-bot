@@ -1,15 +1,16 @@
-import { Express } from 'express';
+import { Context } from 'koa';
+import * as Router from 'koa-router';
 import * as TelegramBot from 'node-telegram-bot-api';
 
 import config from './config';
 
-export default function(app: Express, bot: TelegramBot) {
-  app.post(`/bot${config.token}`, (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
+export default function(router: Router, bot: TelegramBot) {
+  router.post(`/bot${config.token}`, (ctx: Context) => {
+    bot.processUpdate(ctx.request.body);
+    ctx.response.status = 200;
   });
 
-  app.get('/', (req, res) => {
-    res.render('');
+  router.get('/', (req, res) => {
+    // res.render('');
   });
 }

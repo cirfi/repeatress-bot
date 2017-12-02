@@ -1,8 +1,10 @@
-import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
 import { addHours, format, getMonth, getYear, startOfDay } from 'date-fns';
-import * as express from 'express';
 import * as fs from 'fs';
+import * as Koa from 'koa';
+import * as bodyParser from 'koa-bodyparser';
+import * as onError from 'koa-onerror';
+import * as Router from 'koa-router';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
 import { Pool } from 'pg';
@@ -47,17 +49,23 @@ if (releaseMode === 1) {
   const url = config.webHook.url;
   const port = config.webHook.port;
 
-  const app = express();
-  app.use(bodyParser.json());
+  const app = new Koa();
+  const router = new Router();
+
+  onError(app);
+
+  app.use(
+    bodyParser({
+      enableTypes: ['json', 'form', 'text']
+    })
+  );
 
   bot = new TelegramBot(token);
   bot.setWebHook(`${url}/bot${token}`);
 
-  // app.post(`/bot${token}`, (req, res) => {
-  //   bot.processUpdate(req.body);
-  //   res.sendStatus(200);
-  // });
-  applyRouter(app, bot);
+  applyRouter(router, bot);
+
+  app.use(router.routes()).use(router.allowedMethods());
 
   app.listen(port, () => {
     console.log(`Express server is listening on ${port}`);
