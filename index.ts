@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as Koa from 'koa';
 import * as bodyParser from 'koa-bodyparser';
 import * as onError from 'koa-onerror';
-import * as Router from 'koa-router';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { Message } from 'node-telegram-bot-api';
 import { Pool } from 'pg';
@@ -50,7 +49,6 @@ if (releaseMode === 1) {
   const port = config.webHook.port;
 
   const app = new Koa();
-  const router = new Router();
 
   onError(app);
 
@@ -63,9 +61,7 @@ if (releaseMode === 1) {
   bot = new TelegramBot(token);
   bot.setWebHook(`${url}/bot${token}`);
 
-  applyRouter(router, bot);
-
-  app.use(router.routes()).use(router.allowedMethods());
+  applyRouter(app, bot);
 
   app.listen(port, () => {
     console.log(`Express server is listening on ${port}`);
