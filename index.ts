@@ -449,7 +449,7 @@ function getDuration(): string {
   const minutes = totalMinutes % 60;
 
   const totalHours = Math.floor(totalMinutes / 60);
-  const hours = Math.floor(totalHours / 24);
+  const hours = Math.floor(totalHours % 24);
 
   const totalDays = Math.floor(totalHours / 24);
   const days = totalDays;
