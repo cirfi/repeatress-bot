@@ -1,0 +1,12 @@
+{
+  "apps" : [
+      {
+        "name": "bot",
+        "script": "./dist",
+        "watch": "./dist",
+        "env": {
+          "RELEASE": "1"
+        }
+      }
+  ]
+}
